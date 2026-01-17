@@ -1,101 +1,129 @@
-#include <Arduino.h>
 #include <EEPROM.h>
 #include <Wire.h>
+#include <DisplayImages.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define sw 7
+#define SW 7
 #define ENC_A 3
 #define ENC_B 2
 
-// Define 6 LED Pins
-const int ledPins[] = {4, 5, 6, 9, 10, 11}; // Pins for AUX, USB, BT, OPT, WIFI, HDMI
+// LED Pins (Order: AUX, USB, BT, OPT, WIFI, HDMI)
+const int ledPins[] = {4, 5, 6, 9, 10, 11};
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-int menu = 1;
+#define FRAME_DELAY (42)
+#define FRAME_WIDTH (48)
+#define FRAME_HEIGHT (48)
+#define FRAME_COUNT (sizeof(frames) / sizeof(frames[0]))
+
+const unsigned char *allIcons[6] = {icon_aux, icon_usb, icon_bt, icon_optical, icon_wifi, icon_hdmi};
+const char *modeNames[] = {"AUX", "USB AUDIO", "BLUETOOTH", "OPTICAL", "WI-FI", "HDMI ARC"};
+const unsigned char *allScreens[6] = {
+    epd_bitmap_screen_AUX,
+    epd_bitmap_screen_USB,
+    epd_bitmap_screen_Bluetooth,
+    epd_bitmap_screen_Optical,
+    epd_bitmap_screen_Airplay,
+    epd_bitmap_screen_HDMI};
+
+// --- VARIABLES ---
+int selectedItem = 0;
+int activeMode = 0;
+int topVisibleItem = 0;
 int lastClk;
-int sel = 0;
 int menu_mem = 0;
+bool isMenuOpen = true;
 
-// --- MENU ICONS (18x16) ---
-const unsigned char icon_aux[] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x00, 0x00, 0xf0, 0x00, 0x00, 0xff, 0xc3, 0x00, 0xf0, 0x7c, 0x80, 0xf0, 0x44, 0x40, 0xf0, 0x44, 0x40, 0xf0, 0x7c, 0x80, 0xff, 0xc3, 0x00, 0xf0, 0x00, 0x00, 0xf0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const unsigned char icon_bt[] PROGMEM = {0x00, 0xc0, 0x00, 0x00, 0xa0, 0x00, 0x00, 0x90, 0x00, 0x00, 0x88, 0x00, 0x08, 0x90, 0x00, 0x04, 0xa0, 0x00, 0x02, 0xc0, 0x00, 0x01, 0x80, 0x00, 0x02, 0xc0, 0x00, 0x04, 0xa0, 0x00, 0x08, 0x90, 0x00, 0x00, 0x88, 0x00, 0x00, 0x90, 0x00, 0x00, 0xa0, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0x00};
-const unsigned char icon_hdmi[] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0xff, 0x80, 0x40, 0x00, 0x80, 0x4f, 0xfc, 0x80, 0x20, 0x01, 0x00, 0x1f, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const unsigned char icon_optical[] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xf8, 0x00, 0x0f, 0xfc, 0x00, 0x1f, 0xfe, 0x00, 0x1f, 0xfe, 0x00, 0x3f, 0xff, 0x00, 0x3f, 0x3f, 0x00, 0x3e, 0x1f, 0x00, 0x1e, 0x1e, 0x00, 0x1f, 0x3e, 0x00, 0x1f, 0xfe, 0x00, 0x1f, 0xfe, 0x00, 0x1f, 0xfe, 0x00, 0x00, 0x00, 0x00};
-const unsigned char icon_usb[] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x80, 0x00, 0x06, 0x40, 0x00, 0x09, 0x80, 0x00, 0x10, 0x04, 0x00, 0x20, 0x06, 0x00, 0xff, 0xff, 0x00, 0x04, 0x06, 0x00, 0x04, 0x04, 0x00, 0x02, 0x60, 0x00, 0x01, 0x90, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const unsigned char icon_wifi[] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07, 0xf0, 0x00, 0x08, 0x08, 0x00, 0x10, 0x04, 0x00, 0x23, 0xe2, 0x00, 0x04, 0x10, 0x00, 0x08, 0x08, 0x00, 0x01, 0xc0, 0x00, 0x02, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x01, 0xc0, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+int frame = 0;
+byte delay_boot_menu = 24 * 3; // in 24 is equal to 1 sec
 
-const char *modeNames[] = {"", "AUXILIARY", "USB AUDIO", "BLUETOOTH", "OPTICAL", "WI-FI", "HDMI ARC"};
+void boot_screen()
+{
+  display.clearDisplay();
+  display.drawBitmap(40, 10, frames[frame], FRAME_WIDTH, FRAME_HEIGHT, 1);
+  display.display();
+  frame = (frame + 1) % FRAME_COUNT;
+  delay(FRAME_DELAY);
+}
 
-void updateLEDs(int activeMode)
+void handleScrolling()
+{
+  if (selectedItem < topVisibleItem)
+  {
+    topVisibleItem = selectedItem;
+  }
+  else if (selectedItem >= topVisibleItem + 3)
+  {
+    topVisibleItem = selectedItem - 2;
+  }
+  if (selectedItem == 0)
+    topVisibleItem = 0;
+  if (selectedItem == 5)
+    topVisibleItem = 3;
+}
+
+void drawMenu()
+{
+  display.clearDisplay();
+  display.drawBitmap(120, 0, bg_scrollbar, 8, 64, WHITE);
+  int scrollY = map(selectedItem, 0, 5, 0, 56);
+  display.fillRect(125, scrollY, 3, 8, WHITE);
+
+  for (int i = 0; i < 3; i++)
+  {
+    int index = topVisibleItem + i;
+
+    if (index <= 5)
+    {
+      int yPos = i * 21;
+
+      if (index == selectedItem)
+      {
+        display.drawBitmap(0, yPos, bg_item_sel, 128, 21, WHITE);
+        display.drawBitmap(4, yPos + 2, allIcons[index], 18, 16, WHITE);
+        display.setTextColor(WHITE);
+      }
+      else
+      {
+        display.drawBitmap(4, yPos + 2, allIcons[index], 18, 16, WHITE);
+        display.setTextColor(WHITE);
+      }
+
+      display.setTextSize(1);
+      display.setCursor(28, yPos + 6);
+      display.print(modeNames[index]);
+
+      if (index == activeMode)
+      {
+        display.setCursor(100, yPos + 6);
+        display.print("*");
+      }
+    }
+  }
+  display.display();
+}
+
+void drawScreen()
+{
+  display.clearDisplay();
+  display.drawBitmap(0, 0, allScreens[activeMode], 128, 64, WHITE);
+  display.display();
+}
+
+void updateLEDs(int active)
 {
   for (int i = 0; i < 6; i++)
   {
-
-    if (activeMode != 0 && i == (activeMode - 1))
-    {
+    if (i == active)
       digitalWrite(ledPins[i], LOW);
-    }
     else
-    {
       digitalWrite(ledPins[i], HIGH);
-    }
   }
-}
-
-void drawUI(int currentMode, bool isActive)
-{
-  display.clearDisplay();
-
-  const unsigned char *currentIcon;
-  switch (currentMode)
-  {
-  case 1:
-    currentIcon = icon_aux;
-    break;
-  case 2:
-    currentIcon = icon_usb;
-    break;
-  case 3:
-    currentIcon = icon_bt;
-    break;
-  case 4:
-    currentIcon = icon_optical;
-    break;
-  case 5:
-    currentIcon = icon_wifi;
-    break;
-  case 6:
-    currentIcon = icon_hdmi;
-    break;
-  }
-
-  display.drawBitmap(55, 10, currentIcon, 18, 16, WHITE);
-
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  int16_t x1, y1;
-  uint16_t w, h;
-  display.getTextBounds(modeNames[currentMode], 0, 0, &x1, &y1, &w, &h);
-  display.setCursor((128 - w) / 2, 35);
-  display.print(modeNames[currentMode]);
-
-  if (isActive)
-  {
-    display.drawRoundRect(5, 5, 118, 54, 4, WHITE);
-    display.setCursor(45, 50);
-    display.print("ACTIVE");
-  }
-  else
-  {
-    display.setCursor(35, 50);
-    display.print("< SELECT >");
-  }
-  display.display();
 }
 
 void setup()
@@ -103,7 +131,7 @@ void setup()
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.clearDisplay();
 
-  pinMode(sw, INPUT_PULLUP);
+  pinMode(SW, INPUT_PULLUP);
   pinMode(ENC_A, INPUT);
   pinMode(ENC_B, INPUT);
 
@@ -114,13 +142,27 @@ void setup()
   }
 
   lastClk = digitalRead(ENC_A);
-  menu = EEPROM.read(menu_mem);
-  if (menu < 1 || menu > 6)
-    menu = 1;
 
-  sel = 1;
-  updateLEDs(menu);
-  drawUI(menu, true);
+  activeMode = EEPROM.read(menu_mem);
+  if (activeMode < 0 || activeMode > 5)
+    activeMode = 0;
+
+  selectedItem = activeMode;
+
+  if (selectedItem > 1)
+    topVisibleItem = selectedItem - 1;
+  if (selectedItem == 5)
+    topVisibleItem = 3;
+
+  // updateLEDs(activeMode);
+
+  isMenuOpen = false;
+  // drawScreen();
+  for (byte i = 0; i < delay_boot_menu; i++)
+    boot_screen();
+
+  display.clearDisplay();
+  display.display();
 }
 
 void loop()
@@ -128,29 +170,54 @@ void loop()
   int currentClk = digitalRead(ENC_A);
   if (currentClk != lastClk && currentClk == LOW)
   {
-    if (digitalRead(ENC_B) != currentClk)
-      menu++;
+    if (isMenuOpen)
+    {
+      if (digitalRead(ENC_B) != currentClk)
+      {
+        selectedItem++;
+        if (selectedItem > 5)
+          selectedItem = 0;
+      }
+      else
+      {
+        selectedItem--;
+        if (selectedItem < 0)
+          selectedItem = 5;
+      }
+      handleScrolling();
+      drawMenu();
+    }
     else
-      menu--;
-
-    if (menu > 6)
-      menu = 1;
-    if (menu < 1)
-      menu = 6;
-
-    sel = 0;
-    updateLEDs(0);
-    drawUI(menu, false);
+    {
+      isMenuOpen = true;
+      selectedItem = activeMode;
+      handleScrolling();
+      drawMenu();
+    }
   }
   lastClk = currentClk;
 
-  if (digitalRead(sw) == LOW && sel == 0)
+  if (digitalRead(SW) == LOW)
   {
     delay(50);
-    EEPROM.write(menu_mem, menu);
-    sel = 1;
-    updateLEDs(menu);
-    drawUI(menu, true);
-    delay(200);
+    while (digitalRead(SW) == LOW)
+      ;
+
+    if (isMenuOpen)
+    {
+      activeMode = selectedItem;
+      EEPROM.write(menu_mem, activeMode);
+      updateLEDs(activeMode);
+
+      isMenuOpen = false;
+      drawScreen();
+    }
+    else
+    {
+      isMenuOpen = true;
+      selectedItem = activeMode;
+      handleScrolling();
+      drawMenu();
+    }
   }
 }
