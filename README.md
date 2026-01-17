@@ -1,76 +1,43 @@
 # Audio-input-selector
 
-A digitally controlled audio input selector based on Arduino, designed to switch between 6 different audio sources. The project features a rotary encoder for menu navigation, an OLED display for visual feedback, and LED indicators for the active channel.
+Features (Updated)
 
-It retains the last selected input in non-volatile memory (EEPROM), ensuring the system boots up with the previously used source active.
+    6-Channel Input Switching: Supports AUX, USB, Bluetooth, Optical, Wi-Fi, and HDMI ARC.
 
-## Features
+    Boot Animation: Custom frame-by-frame start-up sequence.
 
-- **6-Channel Input Switching:** Supports AUX, USB, Bluetooth, Optical, Wi-Fi, and HDMI ARC.
-- **Intuitive Interface:** Rotary encoder for scrolling and selection.
-- **Visual Feedback:**
-  - **OLED Display (128x64):** Shows custom bitmap icons and status (Active/Select) for each mode.
-  - **LED Indicators:** Dedicated LED output for the currently active channel.
-- **Memory Function:** Automatically saves the active channel to EEPROM and restores it on reboot.
-- **Smart LED Management:** LEDs remain off while scrolling and only light up upon confirmation.
+    List-Style Menu: Scrollable interface showing 3 items at a time with a dynamic scrollbar.
 
-## Hardware Requirements
+    Dual-View Mode:
 
-- **Microcontroller:** Arduino Nano / Uno (or compatible)
-- **Display:** 0.96" I2C OLED (SSD1306 driver, 128x64 pixels)
-- **Input Device:** Rotary Encoder (EC11 or similar) with Push Button
-- **Indicators:** 6x LEDs (one for each channel)
-- **Audio Switching:** Relays or Audio Multiplexer IC (e.g., CD4052) controlled by the LED pins.
+        Menu Mode: For navigation and selection.
 
-## Pin Configuration
+        Full-Screen Mode: Displays high-resolution (128x64) graphical screens for the active input.
 
-| Component           | Pin Name    | Arduino Pin     |
-| :------------------ | :---------- | :-------------- |
-| **Rotary Encoder**  | CLK (A)     | D3              |
-|                     | DT (B)      | D2              |
-|                     | SW (Button) | D7              |
-| **OLED Display**    | SDA         | A4 (or SDA pin) |
-|                     | SCL         | A5 (or SCL pin) |
-| **Channel Outputs** | AUX         | D4              |
-|                     | USB         | D5              |
-|                     | Bluetooth   | D6              |
-|                     | Optical     | D9              |
-|                     | Wi-Fi       | D10             |
-|                     | HDMI        | D11             |
+    Smart Navigation: Automatically returns to the menu from the full screen when the encoder is turned.
 
-_> **Note:** The LEDs in this code are configured as **Active LOW** (LOW = ON, HIGH = OFF). If you are using standard LEDs connected to Ground, you may need to invert the logic in `updateLEDs()` or wire your LEDs to VCC._
+    Memory Function: Retains the last active input after power loss.
 
-## 📦 Dependencies
+⚙️ How It Works (Updated)
 
-This project requires the following Arduino libraries (installable via Library Manager):
+    Boot Up: Plays a custom animation, then loads the last used input from EEPROM.
 
-1.  **Adafruit_GFX**
-2.  **Adafruit_SSD1306**
-3.  **Wire** (Built-in)
-4.  **EEPROM** (Built-in)
+    Menu Navigation:
 
-## How It Works
+        The screen displays a scrollable list of inputs.
 
-1.  **Boot Up:** The system reads the last saved mode from EEPROM (address 0). It immediately activates that channel and displays "ACTIVE".
-2.  **Navigation:** Turning the rotary encoder scrolls through the 6 modes.
-    - The screen displays `< SELECT >` to indicate browsing mode.
-    - The channel LEDs turn **OFF** while scrolling to indicate the new choice is not yet active.
-3.  **Selection:** Pressing the encoder button selects the current mode.
-    - The selection is saved to EEPROM.
-    - The corresponding pin goes LOW (activating the LED/Relay).
-    - The screen updates to show "ACTIVE".
+        Rotate the encoder to highlight an option (indicated by a white bar).
 
-## Custom Icons
+        The currently active channel is marked with an asterisk *.
 
-The code includes 18x16 pixel bitmaps for each input source:
+    Selection:
 
-- `icon_aux`
-- `icon_bt` (Bluetooth)
-- `icon_hdmi`
-- `icon_optical`
-- `icon_usb`
-- `icon_wifi`
+        Press the encoder button to confirm the selection.
 
-## License
+        The hardware activates the corresponding LED/Relay.
 
-MIT License - Open for modification and use.
+        The display switches to Full-Screen Mode, showing a large graphic of the selected source.
+
+    Return to Menu:
+
+        While in Full-Screen mode, simply rotate the encoder to wake the display back into Menu Mode to make a new selection.
